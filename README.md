@@ -1,0 +1,2 @@
+# CWebSocket
+Simple WebSocket Library
