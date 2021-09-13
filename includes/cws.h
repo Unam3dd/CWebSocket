@@ -45,6 +45,7 @@ char *get_error(uint16_t err);
 //////////////////////////////////////////////
 
 // client.c
+int websocket_client_close(websocket_client_t *client);
 void set_client_callbacks(websocket_client_t *client);
 uint8_t websocket_connect(websocket_client_t *client);
 uint8_t websocket_client_connect(websocket_client_t *client);
@@ -84,3 +85,14 @@ int send_handshake_request(websocket_client_t *client);
 // rw.c
 int websocket_client_read(websocket_client_t *client, char *buf, size_t len);
 int websocket_client_write(websocket_client_t *client, char *buf, size_t len);
+
+
+//////////////////////////////////////////////
+//
+//        Websocket Frames
+//
+//////////////////////////////////////////////
+char *mask_data(char *buf, uint8_t key[4]);
+void generate_mask_key(websocket_frame_t *frame);
+void websocket_create_text_frame(websocket_frame_t *frame, char *data, size_t len, uint8_t mode);
+unsigned char *websocket_format_frame(websocket_frame_t *frame, unsigned char *buf, size_t buf_size);

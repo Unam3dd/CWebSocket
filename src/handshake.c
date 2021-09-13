@@ -36,6 +36,7 @@ uint8_t urandom(unsigned char *output, size_t output_len)
 uint8_t generate_handshake_key(websocket_handshake_t *handshake)
 {
     unsigned char buf[0x10] = {0};
+
     size_t olen = 0;
 
     if (urandom(buf, sizeof(buf)))
@@ -43,9 +44,8 @@ uint8_t generate_handshake_key(websocket_handshake_t *handshake)
     
     for (uint16_t i = 0; i < 0x10; i++)
         buf[i] &= 0x7f;
-    
-    mbedtls_base64_encode(handshake->options.key, 0x100, &olen, buf, 0x10);
 
+    mbedtls_base64_encode(handshake->options.key, 0x100, &olen, buf, 0x10);
     return (0);
 }
 
@@ -73,7 +73,7 @@ uint8_t make_handshake_request(websocket_client_t *client)
         if (client->url.path)
             snprintf(path, 0x100, "/%s", client->url.path);
         else
-            strncpy(path, "/", sizeof(path));
+            path[0] = '/';
 
         snprintf(
             client->handshake.buffer.buf, 

@@ -14,6 +14,14 @@
 //
 //////////////////////////////////////////////
 
+int websocket_client_close(websocket_client_t *client)
+{
+    if (client->ssl)
+        client->secure.free(client);
+
+    return (close(client->fd));
+}
+
 void set_client_callbacks(websocket_client_t *client)
 {
     client->ssl = 0x0;
@@ -23,6 +31,7 @@ void set_client_callbacks(websocket_client_t *client)
     client->handshake.send_handshake = &send_handshake_request;
     client->secure.init = &initialize_ssl;
     client->secure.free = &free_ssl_context;
+    client->close = &websocket_client_close;
 }
 
 uint8_t websocket_connect(websocket_client_t *client)
