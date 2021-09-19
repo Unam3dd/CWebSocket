@@ -49,8 +49,10 @@ struct websocket_error_t
 
 struct websocket_buffer_t
 {
-    char buf[0x400];
+    char buf[0x1000];
+    char *ptr;
     int pos;
+    uint8_t alloc : 1;
 };
 
 struct websocket_ssl_t
@@ -65,7 +67,7 @@ struct websocket_ssl_t
 
 struct websocket_options_t
 {
-    unsigned char key[0x100];
+    unsigned char key[0x11];
     char *additional_hdr;
 };
 
@@ -118,4 +120,5 @@ struct websocket_frame_t
     websocket_extented_frame_t ext;
     uint8_t mask_key[0x4];
     char *payload;
+    size_t frame_len;
 };

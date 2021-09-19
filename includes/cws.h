@@ -92,7 +92,21 @@ int websocket_client_write(websocket_client_t *client, char *buf, size_t len);
 //        Websocket Frames
 //
 //////////////////////////////////////////////
-char *mask_data(char *buf, uint8_t key[4]);
+
+char *mask_data(char *buf, uint8_t *key);
 void generate_mask_key(websocket_frame_t *frame);
 void websocket_create_text_frame(websocket_frame_t *frame, char *data, size_t len, uint8_t mode);
-unsigned char *websocket_format_frame(websocket_frame_t *frame, unsigned char *buf, size_t buf_size);
+char *websocket_create_buffer(websocket_frame_t *frame, websocket_buffer_t *buf);
+websocket_buffer_t *websocket_format_frame(websocket_frame_t *frame, websocket_buffer_t *buf);
+void websocket_delete_buffer(websocket_buffer_t *buf);
+websocket_frame_t *websocket_parse_frame(websocket_frame_t *frame, websocket_buffer_t *buf);
+
+
+
+//////////////////////////////////////////////
+//
+//          UTILS
+//
+//////////////////////////////////////////////
+
+size_t get_next_memory(size_t size);

@@ -2,6 +2,7 @@
 #include <stddef.h>
 #include <time.h>
 #include <string.h>
+#include <stdio.h>
 #include "cws.h"
 
 //////////////////////////////////////////////
@@ -62,11 +63,18 @@ char *mask_data(char *buf, uint8_t *key)
 void generate_mask_key(websocket_frame_t *frame)
 {
     uint8_t *tmp = frame->mask_key;
+    uint8_t byte = 0, i = 0;
 
     srandom(time(NULL));
 
-    for (uint8_t i = 0; i < 4; i++)
-        tmp[i] = rand() % 0x7F;
+    while (i < 4) {
+        byte = (rand() % 0x7F);
+
+        if (!byte)
+            continue;
+        
+        tmp[i++] = byte;
+    }
 }
 
 void websocket_create_text_frame(websocket_frame_t *frame, char *data, size_t len, uint8_t mode)
@@ -79,45 +87,109 @@ void websocket_create_text_frame(websocket_frame_t *frame, char *data, size_t le
     frame->ext.ext_len = 0x0;
     frame->ext.ext__len = 0x0;
     frame->len = len;
+    frame->frame_len = 2;
 
     if (len >= 0x7E && len <= 0xFFFF) {
         frame->len = 0x7E;
-        frame->ext.ext_len = len & 0xFFFF;
+        frame->ext.ext_len = len;
+        frame->frame_len += 2;
     } 
     
     if (len > 0xFFFF) {
-        frame->len = 0x7E;
+        frame->len = 0x7F;
         frame->ext.ext__len = len;
+        frame->frame_len += 8;
     }
 
     if (mode) {
         frame->mask = 1;
         generate_mask_key(frame);
         frame->payload = mask_data(data, frame->mask_key);
+        frame->frame_len += 4;
+    }
+
+    frame->frame_len += len;
+}
+
+char *websocket_create_buffer(websocket_frame_t *frame, websocket_buffer_t *buf)
+{
+    char *p_ptr = buf->ptr;
+
+    buf->pos = 0;
+
+    if (frame->frame_len > 0x1000) {
+        buf->ptr = (char *)malloc(sizeof(char) * get_next_memory(frame->frame_len));
+        p_ptr = buf->ptr;
+        buf->alloc = 0x1;
+    }
+
+    return (p_ptr);
+}
+
+websocket_buffer_t *websocket_format_frame(websocket_frame_t *frame, websocket_buffer_t *buf)
+{
+    unsigned char *tmp = (unsigned char *)((buf->alloc) ? (buf->ptr) : (buf->buf));
+
+    *tmp++ = (frame->fin << 0x7 | frame->rsv << 0x6 | frame->opcode);
+    
+    *tmp++ = (frame->mask << 0x7 | frame->len);
+
+    if (frame->ext.ext_len) {
+        *tmp++ = (frame->ext.ext_len >> 8);
+        *tmp++ = (frame->ext.ext_len & 0xFF);
+    }
+
+    if (frame->ext.ext__len) {
+        for (uint8_t i = 1; i < 9; i++)
+            *tmp++ = (frame->ext.ext__len >> (0x40 - (0x8 * i)) & 0xFF);
+    }
+    
+    if (frame->mask)
+        strncat((char *) tmp, (char *)frame->mask_key, 0x4);
+    
+    strncat((char *) tmp, frame->payload, strlen(frame->payload));
+
+    return (buf);
+}
+
+void websocket_delete_buffer(websocket_buffer_t *buf)
+{
+    if (buf->alloc) {
+        free(buf->ptr);
+        buf->alloc = 0;
     }
 }
 
-unsigned char *websocket_format_frame(websocket_frame_t *frame, unsigned char *buf, size_t buf_size)
+
+websocket_frame_t *websocket_parse_frame(websocket_frame_t *frame, websocket_buffer_t *buf)
 {
-    size_t size = (frame->len + frame->ext.ext_len + frame->ext.ext__len);
+    char *tmp = buf->alloc ? buf->ptr : buf->buf;
 
-    if (buf_size <= size)
-        return (NULL);
-
-    buf[0] = (frame->fin << 0x7 | frame->rsv << 0x6 | frame->opcode);
+    frame->fin = (*tmp >> 0x7);
+    frame->opcode = (*tmp++ & 0xF);
     
-    buf[1] = (frame->mask << 0x7 | frame->len);
-
-    if (frame->ext.ext_len)
-        buf[2] = (frame->ext.ext_len);
-
-    if (frame->ext.ext__len)
-        buf[2] = (frame->ext.ext__len);
+    frame->mask = (*tmp >> 0x7);
     
     if (frame->mask)
-        strncat((char *)buf, (char *)frame->mask_key, 0x4);
+        return (NULL);
     
-    strncat((char *)buf, frame->payload, size);
+    frame->len = (*tmp++ & 0x7F);
 
-    return (buf);
+    if (!frame->len)
+        return (NULL);
+
+    if (frame->len == 0x7E) {
+        frame->ext.ext_len = *tmp++;
+        frame->ext.ext_len <<= 8;
+        frame->ext.ext_len |= *tmp++ & 0xFF;
+    }
+    
+    if (frame->len == 0x7F) {
+        for (uint8_t i = 7; i >= 0; i--)
+            frame->ext.ext__len |= ((*tmp++ << (8 * i)) & 0xFF);
+    }
+
+    frame->payload = tmp;
+
+    return (frame);
 }
